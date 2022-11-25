@@ -27,23 +27,22 @@ const fetchMyIP = function(callback) {
 };
 
 const fetchCoordsByIP = function(IP, callback) {
-  request(`http://ipwho.is/${IP}`,
-    (error, response, body) => {
-      if (error) {
-        callback(error, null);
-        return;
-      }
-      const parsed = JSON.parse(body);
+  request(`http://ipwho.is/${IP}`, (error, response, body) => {
+    if (error) {
+      callback(error, null);
+      return;
+    }
+    const parsed = JSON.parse(body);
 
-      if (!parsed.success) {
-        const message = `Success status was ${parsed.success}. Server message says ${parsed.message} when fetching for IP ${parsed.ip}`;
-        callback(Error(message), null);
-        return;
-      }
-      const {latitude, longitude} = parsed;
+    if (!parsed.success) {
+      const message = `Success status was ${parsed.success}. Server message says ${parsed.message} when fetching for IP ${parsed.ip}`;
+      callback(Error(message), null);
+      return;
+    }
+    const { latitude, longitude } = parsed;
 
-      callback(null, {latitude, longitude});
-    });
+    callback(null, { latitude, longitude });
+  });
 };
 
 /**
@@ -57,36 +56,60 @@ const fetchCoordsByIP = function(IP, callback) {
  *     [ { risetime: 134564234, duration: 600 }, ... ]
  */
 const fetchISSFlyOverTimes = function(coords, callback) {
-  request(`https://iss-flyover.herokuapp.com/json/?lat=${coords.latitude}&lon=${coords.longitude}`, (error, response, body) => {
-    if (error) {
-      callback(error, null);
-      return;
-    }
+  request(
+    `https://iss-flyover.herokuapp.com/json/?lat=${coords.latitude}&lon=${coords.longitude}`,
+    (error, response, body) => {
+      if (error) {
+        callback(error, null);
+        return;
+      }
 
-    if (response.statusCode !== 200) {
-      callback(Error(`Status Code ${response.statusCode} when fetching ISS pass times: ${body}`), null);
-      return;
+      if (response.statusCode !== 200) {
+        callback(
+          Error(
+            `Status Code ${response.statusCode} when fetching ISS pass times: ${body}`
+          ),
+          null
+        );
+        return;
+      }
+      const passes = JSON.parse(body).response;
+      callback(null, passes);
     }
-    const passes = JSON.parse(body).response;
-    callback(null, passes);
-  });
+  );
 };
-
 
 /**
  * Orchestrates multiple API requests in order to determine the next 5 upcoming ISS fly overs for the user's current location.
  * Input:
- *   - A callback with an error or results. 
+ *   - A callback with an error or results.
  * Returns (via Callback):
  *   - An error, if any (nullable)
  *   - The fly-over times as an array (null if error):
  *     [ { risetime: <number>, duration: <number> }, ... ]
- */ 
- const nextISSTimesForMyLocation = function(callback) {
-  // empty for now
-}
+ */
+const nextISSTimesForMyLocation = function(callback) {
+  fetchMyIP((error, ip) => {
+    if (error) {
+      return callback(error, null);
+    }
+    fetchCoordsByIP(ip, (error, loc) => {
+      if (error) {
+        return callback(error, null);
+      }
+      fetchISSFlyOverTimes(loc, (error, nextPasses) => {
+        if (error) {
+          return callback(error, null);
+        }
+        callback(null, nextPasses);
+      });
+    });
+  });
+};
 
-
-
-
-module.exports = { fetchMyIP, fetchCoordsByIP, fetchISSFlyOverTimes, nextISSTimesForMyLocation };
+module.exports = {
+  fetchMyIP,
+  fetchCoordsByIP,
+  fetchISSFlyOverTimes,
+  nextISSTimesForMyLocation,
+};
